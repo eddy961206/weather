@@ -1,5 +1,7 @@
 import os
 import requests
+import time
+import schedule
 from dotenv import load_dotenv
 from slack_sdk import WebClient
 from slack_sdk.errors import SlackApiError
@@ -65,10 +67,10 @@ def get_air_quality_data(api_key, location_name):
 
     # Create the full URL for debugging
     full_url = f"{url}?{urlencode(params)}"
-    print(f"Request URL: {full_url}")
+    # print(f"Request URL: {full_url}")
 
     response = requests.get(full_url)
-    print(response.text)
+    # print(response.text)
 
     if response.status_code != 200:
         print(f"Error: Unable to fetch air quality data, status code: {response.status_code}")
@@ -87,6 +89,50 @@ def get_air_quality_data(api_key, location_name):
         return None
 
     return response_data['response']['body']['items'][0]
+
+def get_weather_alerts(api_key):
+    base_date = datetime.now().strftime("%Y%m%d")
+    base_time = "0600"  # 06:00 발표 기준 데이터 요청
+
+    # 기상 특보 조회
+    url = f"http://apis.data.go.kr/1360000/WthrWrnInfoService/getWthrWrnMsg"
+    params = {
+        'serviceKey': api_key,
+        'numOfRows': '10',
+        'pageNo': '1',
+        'dataType': 'JSON',
+        'stnId': '108'  # 서울 지역 코드
+    }
+    response = requests.get(url, params=params)
+
+    if response.status_code != 200:
+        print(f"Error: Unable to fetch weather alert data, status code: {response.status_code}")
+        print(f"Response text: {response.text}")
+        return None
+
+    try:
+        response_data = response.json()
+    except requests.exceptions.JSONDecodeError as e:
+        print(f"Error: Unable to parse JSON response. {e}")
+        print(f"Response text: {response.text}")
+        return None
+
+    # 응답 데이터 출력
+    print(response_data)
+
+    # 서울 관련 특보 항목만 필터링
+    items = response_data['response']['body']['items']['item']
+    seoul_keywords = ["서울", "서울특별시"]
+    seoul_alerts = [
+        item for item in items 
+        if any(keyword in (
+            str(item.get('t1', '')) + str(item.get('t2', '')) + str(item.get('t3', '')) +
+            str(item.get('t4', '')) + str(item.get('t5', '')) + str(item.get('t6', '')) + str(item.get('t7', ''))
+        ) for keyword in seoul_keywords)
+    ]
+
+    return seoul_alerts
+
 
 def convert_to_grade(value):
     grade_map = {
@@ -175,7 +221,17 @@ def main():
         f"🌍 종합: {air_quality_data['overall']}\n"
     )
 
+    weather_alerts = get_weather_alerts(WEATHER_API_KEY)
+    if weather_alerts:
+        message += "\n기상 특보:\n"
+        for alert in weather_alerts:
+            message += f"- {alert['t1']}: {alert['t2']} ({alert['t3']})\n"
+
     send_slack_message(SLACK_CHANNEL, message)
 
-if __name__ == "__main__":
-    main()
+# 스케줄러 설정
+schedule.every().day.at("06:00").do(main)
+
+while True:
+    schedule.run_pending()
+    time.sleep(1)
