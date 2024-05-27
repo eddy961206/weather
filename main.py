@@ -229,6 +229,8 @@ def main():
 
     send_slack_message(SLACK_CHANNEL, message)
 
+
+main()
 # 스케줄러 설정
 schedule.every().day.at("06:00").do(main)
 

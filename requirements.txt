@@ -1,0 +1,5 @@
+requests
+schedule
+python-dotenv
+slack_sdk
+urllib3
