@@ -120,6 +120,11 @@ def get_weather_alerts(api_key):
     # 응답 데이터 출력
     print(response_data)
 
+    # 응답에 'body'가 있는지 확인
+    if 'response' not in response_data or 'body' not in response_data['response'] or 'items' not in response_data['response']['body']:
+        print("Error: No weather alerts available in the response.")
+        return None
+
     # 서울 관련 특보 항목만 필터링
     items = response_data['response']['body']['items']['item']
     seoul_keywords = ["서울", "서울특별시"]
@@ -229,6 +234,8 @@ def main():
 
     send_slack_message(SLACK_CHANNEL, message)
 
+
+main()
 # 스케줄러 설정
 schedule.every().day.at("06:00").do(main)
 
